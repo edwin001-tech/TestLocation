@@ -72,7 +72,17 @@ public class MainActivity extends AppCompatActivity  implements GoogleApiClient.
         //lets add permissions we need to request location of the users
         permissions.add(Manifest.permission.ACCESS_FINE_LOCATION);
         permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION);
+
         permissionsToRequest = permissionsToRequest(permissions);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (permissionsToRequest.size() > 0) {
+                requestPermissions(permissionsToRequest.toArray(
+                        new String[permissionsToRequest.size()]),
+                        ALL_PERMISSIONS_RESULT
+                );
+            }
+        }
 
 
 
@@ -324,6 +334,10 @@ public class MainActivity extends AppCompatActivity  implements GoogleApiClient.
 
     @Override
     public void onLocationChanged(Location location) {
+        if (location != null) {
+            locationTextview.setText(MessageFormat.format("Changed - Lat: {0} Changed - Lon: {1}",
+                    location.getLatitude(), location.getLongitude()));
+        }
 
     }
 }
