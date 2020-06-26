@@ -12,8 +12,14 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationAvailability;
+import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationListener;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
 
@@ -21,13 +27,16 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.app.ActivityCompat;
 
 import android.view.View;
 
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import java.text.MessageFormat;
 import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity  implements GoogleApiClient.ConnectionCallbacks,
@@ -38,6 +47,13 @@ public class MainActivity extends AppCompatActivity  implements GoogleApiClient.
     private ArrayList<String> permissionsToRequest;
     private ArrayList<String> permissions = new ArrayList<>();
     private java.util.ArrayList<String> permissionsRejected = new ArrayList<>();
+    private TextView locationTextview;
+    private LocationRequest locationRequest;
+
+
+    public static final long UPDATE_INTERVAL = 5000;
+    public static final long FASTEST_INTERVAL = 5000;
+    private Task<Location> location;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,6 +61,8 @@ public class MainActivity extends AppCompatActivity  implements GoogleApiClient.
         setContentView(R.layout.activity_main);
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+
+        locationTextview = findViewById(R.id.location_text_view);
 
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(MainActivity.this);
 
@@ -84,6 +102,29 @@ public class MainActivity extends AppCompatActivity  implements GoogleApiClient.
         return result;
     }
 
+    private void checkPlayServicess() {
+        int errorCode = GoogleApiAvailability.getInstance()
+                .isGooglePlayServicesAvailable(this);
+
+        if (errorCode != ConnectionResult.SUCCESS) {
+            Dialog errorDialog = GoogleApiAvailability.getInstance()
+                    .getErrorDialog(this, errorCode, errorCode, new DialogInterface.OnCancelListener() {
+                        @Override
+                        public void onCancel(DialogInterface dialog) {
+                            Toast.makeText(MainActivity.this, "No services",
+                                    Toast.LENGTH_LONG)
+                                    .show();
+                            finish();
+                        }
+                    });
+            errorDialog.show();
+        } else {
+            Toast.makeText(MainActivity.this, "All is good",
+                    Toast.LENGTH_LONG)
+                    .show();
+        }
+    }
+
     private boolean hasPermission(String perm) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             return checkSelfPermission(perm) == PackageManager.PERMISSION_GRANTED;
@@ -117,35 +158,90 @@ public class MainActivity extends AppCompatActivity  implements GoogleApiClient.
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        if (client != null) {
+            client.connect();
+        }
+    }
+
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        client.disconnect();
+    }
+
+
+    @Override
     protected void onPostResume() {
         super.onPostResume();
-        int errorCode = GoogleApiAvailability.getInstance()
-                .isGooglePlayServicesAvailable(this);
-
-        if (errorCode != ConnectionResult.SUCCESS) {
-            Dialog errorDialog = GoogleApiAvailability.getInstance()
-                    .getErrorDialog(this, errorCode, errorCode, new DialogInterface.OnCancelListener() {
-                        @Override
-                        public void onCancel(DialogInterface dialog) {
-                            Toast.makeText(MainActivity.this, "No services",
-                                    Toast.LENGTH_LONG)
-                                    .show();
-                            finish();
-                        }
-                    });
-            errorDialog.show();
-        }
-        else {
-            Toast.makeText(MainActivity.this, "GooglePlay services works",
-                    Toast.LENGTH_LONG)
-                    .show();
-        }
+        checkPlayServicess();
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+
+        if (client != null && client.isConnected()) {
+            LocationServices.getFusedLocationProviderClient(this)
+                    .removeLocationUpdates(new LocationCallback() {
+
+                    });
+            client.disconnect();
+        }
+    }
+
+
+    @Override
     public void onConnected(@Nullable Bundle bundle) {
+        if (ActivityCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        fusedLocationProviderClient.getLastLocation()
+                .addOnSuccessListener(this, new OnSuccessListener<Location>() {
+                    @Override
+                    public void onSuccess(Location location) {
+                        //Get last know location. But it could be null
+                        if (location != null) {
+                            locationTextview.setText(MessageFormat.format("Lat: {0} Lon: {1}",
+                                    location.getLatitude(), location.getLongitude()));
+                        }
+
+                    }
+                });
+
+        startLocationUpdates();
 
     }
+
+    private void startLocationUpdates() {
+        locationRequest = new LocationRequest();
+        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        locationRequest.setInterval(UPDATE_INTERVAL);
+        locationRequest.setFastestInterval(FASTEST_INTERVAL);
+
+        if (ActivityCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_COARSE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(MainActivity.this,
+                    "You need to enable permission to display location!",
+                    Toast.LENGTH_LONG)
+                    .show();
+        }
+
+
+             }
+
+
+
+
 
     @Override
     public void onConnectionSuspended(int i) {
