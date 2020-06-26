@@ -25,6 +25,7 @@ import com.google.android.material.snackbar.Snackbar;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.app.ActivityCompat;
@@ -49,6 +50,8 @@ public class MainActivity extends AppCompatActivity  implements GoogleApiClient.
     private java.util.ArrayList<String> permissionsRejected = new ArrayList<>();
     private TextView locationTextview;
     private LocationRequest locationRequest;
+    private static final int ALL_PERMISSIONS_RESULT = 1111;
+    private static final int PLAY_SERVICES_RESOLUTION_REQUEST = 9000 ;
 
 
     public static final long UPDATE_INTERVAL = 5000;
@@ -193,6 +196,7 @@ public class MainActivity extends AppCompatActivity  implements GoogleApiClient.
     }
 
 
+
     @Override
     public void onConnected(@Nullable Bundle bundle) {
         if (ActivityCompat.checkSelfPermission(this,
@@ -216,7 +220,55 @@ public class MainActivity extends AppCompatActivity  implements GoogleApiClient.
 
         startLocationUpdates();
 
+
+
     }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        switch (requestCode) {
+            case ALL_PERMISSIONS_RESULT:
+                for (String perm : permissionsToRequest) {
+                    if (!hasPermission(perm)) {
+                        permissionsRejected.add(perm);
+
+
+                    }
+                }
+                if (permissionsRejected.size() > 0) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        if (shouldShowRequestPermissionRationale(permissionsRejected.get(0))) {
+                            new AlertDialog.Builder(MainActivity.this)
+                                    .setMessage("These permissions are mandatory to get location")
+                                    .setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                                        @Override
+                                        public void onClick(DialogInterface dialog, int which) {
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                                requestPermissions(permissionsRejected.toArray(
+                                                        new String[permissionsRejected.size()]),
+                                                        ALL_PERMISSIONS_RESULT);
+                                            }
+                                        }
+                                    }).setNegativeButton("Cancel", null)
+                                    .create()
+                                    .show();
+
+
+                        }
+                    }
+                }else {
+                    if (client != null) {
+                        client.connect();
+                    }
+                }
+                break;
+
+        }
+    }
+
 
     private void startLocationUpdates() {
         locationRequest = new LocationRequest();
@@ -236,7 +288,24 @@ public class MainActivity extends AppCompatActivity  implements GoogleApiClient.
                     .show();
         }
 
+        LocationServices.getFusedLocationProviderClient(MainActivity.this)
+                .requestLocationUpdates(locationRequest, new LocationCallback() {
+                    @Override
+                    public void onLocationResult(LocationResult locationResult) {
+                        super.onLocationResult(locationResult);
+                        locationTextview.setText("Called FusedLocation");
+                        if (locationResult != null) {
+                            Location location = locationResult.getLastLocation();
+                            locationTextview.setText(MessageFormat.format("Lat: {0} Lon: {1}",
+                                    location.getLatitude(), location.getLongitude()));
+                        }
+                    }
+                    @Override
+                    public void onLocationAvailability(LocationAvailability locationAvailability) {
+                        super.onLocationAvailability(locationAvailability);
+                    }
 
+                  }, null);
              }
 
 
